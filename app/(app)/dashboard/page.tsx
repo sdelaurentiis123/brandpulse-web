@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/page-header";
 import { SentimentBadge } from "@/components/sentiment-badge";
 import { BpxTrendChart } from "@/components/charts/bpx-trend-chart";
 import { NoEntity } from "@/components/no-entity";
+import { EmptyState } from "@/components/empty-state";
 import type { ReputationSnapshot } from "@/lib/types/db";
 
 function fmtDate(iso: string) {
@@ -69,6 +70,24 @@ export default async function DashboardPage() {
       })
     : "";
 
+  const hasAnyData =
+    !!briefing ||
+    !!snapshot ||
+    trend.length > 0 ||
+    narratives.length > 0;
+
+  if (!hasAnyData) {
+    return (
+      <>
+        <PageHeader title={selected} subtitle="Overview" />
+        <EmptyState
+          title={`No data yet for ${selected}`}
+          message="BrandPulse hasn't ingested any posts, snapshots, or narratives for this entity. Data will appear here after the next ingestion run."
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader title={selected} subtitle="Overview" />
@@ -87,25 +106,31 @@ export default async function DashboardPage() {
       <div className="mb-8 flex flex-wrap gap-3">
         <MetricCard
           label="BPX Score"
-          value={snapshot?.bpx ?? "—"}
+          value={report?.overall?.score ?? snapshot?.bpx ?? "—"}
           sub={
             typeof report?.overall?.delta === "number"
               ? `${report.overall.delta > 0 ? "+" : ""}${report.overall.delta} from yesterday`
-              : "Latest snapshot"
+              : typeof report?.overall?.delta === "string"
+                ? "Change vs yesterday"
+                : "Latest snapshot"
           }
           accent="brand"
         />
         <MetricCard
           label="Sentiment"
-          value={report?.overall?.sentiment ?? (snapshot?.sentiment_index ?? "—")}
+          value={report?.overall?.sentiment ?? snapshot?.sentiment_index ?? "—"}
           sub="Across all platforms"
         />
         <MetricCard
           label="Volume"
           value={
-            snapshot?.volume_total != null
-              ? snapshot.volume_total.toLocaleString()
-              : report?.overall?.social_volume ?? "—"
+            report?.overall?.social_volume != null
+              ? typeof report.overall.social_volume === "number"
+                ? report.overall.social_volume.toLocaleString()
+                : report.overall.social_volume
+              : snapshot?.volume_total != null
+                ? snapshot.volume_total.toLocaleString()
+                : "—"
           }
           sub="Posts tracked (24h)"
         />
@@ -175,14 +200,43 @@ export default async function DashboardPage() {
         <>
           <SectionHeader title="Recommended Actions" />
           <div className="flex flex-col gap-2">
-            {report.actions.map((a, i) => (
-              <div
-                key={i}
-                className="rounded-md bg-[color:var(--surface)] px-4 py-3 text-sm leading-relaxed border-l-[3px] border-[color:var(--brand)]"
-              >
-                {a}
-              </div>
-            ))}
+            {report.actions.map((a, i) => {
+              if (typeof a === "string") {
+                return (
+                  <div
+                    key={i}
+                    className="rounded-md bg-[color:var(--surface)] px-4 py-3 text-sm leading-relaxed border-l-[3px] border-[color:var(--brand)]"
+                  >
+                    {a}
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={i}
+                  className="rounded-md bg-[color:var(--surface)] px-4 py-3 leading-relaxed border-l-[3px] border-[color:var(--brand)]"
+                >
+                  <div className="text-sm font-semibold">{a.title}</div>
+                  {a.reasoning && (
+                    <div className="mt-1.5 text-[13px] text-[color:var(--text-secondary)]">
+                      {a.reasoning}
+                    </div>
+                  )}
+                  {a.sources && a.sources.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                      {a.sources.map((src, j) => (
+                        <span
+                          key={j}
+                          className="rounded bg-white border border-border px-1.5 py-0.5 text-[color:var(--text-secondary)]"
+                        >
+                          {src}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       )}

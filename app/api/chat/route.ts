@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getChatMessages,
   getContextBundleForChat,
+  normalizeEntity,
 } from "@/lib/supabase/queries";
 import { CHAT_MODEL, getAnthropicClient } from "@/lib/anthropic";
 import type { ChatContextBundle } from "@/lib/supabase/queries";
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
   if (!entity || !userMessage?.trim()) {
     return NextResponse.json({ error: "missing fields" }, { status: 400 });
   }
+  const entityKey = normalizeEntity(entity);
 
   // Resolve or create the session.
   let sessionId = body.sessionId ?? null;
@@ -109,7 +111,7 @@ export async function POST(request: Request) {
       (userMessage.trim().length > 40 ? "…" : "");
     const { data, error } = await supabase
       .from("chat_sessions")
-      .insert({ user_id: user.id, entity_name: entity, title })
+      .insert({ user_id: user.id, entity_name: entityKey, title })
       .select("id")
       .single();
     if (error || !data) {

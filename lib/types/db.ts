@@ -105,16 +105,23 @@ export interface ReportRow {
   created_at: string;
 }
 
+export interface ReportAction {
+  title: string;
+  reasoning?: string;
+  sources?: string[];
+  urls?: string[];
+}
+
 export interface ReportData {
   briefing?: string;
   overall?: {
     score?: number;
     sentiment?: string;
-    delta?: number;
+    delta?: number | string;
     social_volume?: number | string;
   };
   narratives?: Array<Record<string, unknown>>;
-  actions?: string[];
+  actions?: Array<string | ReportAction>;
 }
 
 export interface ChatSession {

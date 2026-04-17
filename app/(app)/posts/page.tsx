@@ -3,6 +3,7 @@ import { getPosts } from "@/lib/supabase/queries";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
 import { NoEntity } from "@/components/no-entity";
+import { EmptyState } from "@/components/empty-state";
 import { SentimentBadge } from "@/components/sentiment-badge";
 import { PostsFilters } from "@/components/posts-filters";
 
@@ -66,7 +67,9 @@ export default async function PostsPage({
         </div>
         {posts.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm text-[color:var(--text-secondary)]">
-            No posts match this filter.
+            {source === "All"
+              ? `No posts ingested for ${selected} yet.`
+              : `No ${source} posts match this filter.`}
           </div>
         ) : (
           posts.map((p, i) => (

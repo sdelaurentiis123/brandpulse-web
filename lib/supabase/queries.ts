@@ -11,6 +11,13 @@ import type {
   TrackedEntity,
 } from "@/lib/types/db";
 
+// Entity names are stored inconsistently across tables (tracked_entities uses
+// TitleCase; articles/reports/snapshots/narratives use lowercase). All reads
+// match case-insensitively; all writes we control normalize to lowercase.
+export function normalizeEntity(name: string): string {
+  return name.trim().toLowerCase();
+}
+
 export async function getTrackedEntities(
   userId: string
 ): Promise<TrackedEntity[]> {
@@ -32,7 +39,7 @@ export async function getLatestBriefing(
   const { data, error } = await supabase
     .from("reports")
     .select("*")
-    .eq("entity_name", entityName)
+    .ilike("entity_name", entityName)
     .order("created_at", { ascending: false })
     .limit(1);
   if (error) throw error;
@@ -47,7 +54,7 @@ export async function getBpxTrend(
   const { data, error } = await supabase
     .from("reputation_snapshots")
     .select("*")
-    .eq("entity_name", entityName)
+    .ilike("entity_name", entityName)
     .order("fetched_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
@@ -61,7 +68,7 @@ export async function getLatestSnapshot(
   const { data, error } = await supabase
     .from("reputation_snapshots")
     .select("*")
-    .eq("entity_name", entityName)
+    .ilike("entity_name", entityName)
     .order("fetched_at", { ascending: false })
     .limit(1);
   if (error) throw error;
@@ -75,7 +82,7 @@ export async function getActiveNarratives(
   const { data: threads, error: tErr } = await supabase
     .from("narrative_threads")
     .select("*")
-    .eq("entity_name", entityName)
+    .ilike("entity_name", entityName)
     .eq("status", "active")
     .order("last_updated", { ascending: false });
   if (tErr) throw tErr;
@@ -85,7 +92,7 @@ export async function getActiveNarratives(
   const { data: updates, error: uErr } = await supabase
     .from("narrative_updates")
     .select("*")
-    .eq("entity_name", entityName)
+    .ilike("entity_name", entityName)
     .in("thread_id", threadIds)
     .order("date", { ascending: false });
   if (uErr) throw uErr;
@@ -112,7 +119,7 @@ export async function getPosts(
   let q = supabase
     .from("articles")
     .select("*")
-    .eq("entity_name", entityName)
+    .ilike("entity_name", entityName)
     .eq("type", "post")
     .order("post_date", { ascending: false })
     .limit(opts.limit ?? 50);
@@ -150,7 +157,7 @@ export async function getChatSessions(
     .from("chat_sessions")
     .select("*")
     .eq("user_id", userId)
-    .eq("entity_name", entityName)
+    .eq("entity_name", normalizeEntity(entityName))
     .order("updated_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as ChatSession[];

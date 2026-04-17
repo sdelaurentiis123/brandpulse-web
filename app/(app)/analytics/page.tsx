@@ -3,6 +3,7 @@ import { getBpxTrend } from "@/lib/supabase/queries";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
 import { NoEntity } from "@/components/no-entity";
+import { EmptyState } from "@/components/empty-state";
 import { VolumeBarChart } from "@/components/charts/volume-bar-chart";
 import { SentimentMomentumChart } from "@/components/charts/sentiment-momentum-chart";
 import { BpxComponentsChart } from "@/components/charts/bpx-components-chart";
@@ -38,9 +39,10 @@ export default async function AnalyticsPage() {
     return (
       <>
         <PageHeader title={selected} subtitle="Analytics" />
-        <div className="rounded-lg border border-border bg-white p-6 text-sm text-[color:var(--text-secondary)]">
-          No snapshot data yet.
-        </div>
+        <EmptyState
+          title={`No snapshots yet for ${selected}`}
+          message="BPX components and volume charts appear once the ingestion pipeline writes reputation snapshots for this entity."
+        />
       </>
     );
   }

@@ -3,6 +3,7 @@ import { getActiveNarratives } from "@/lib/supabase/queries";
 import { PageHeader } from "@/components/page-header";
 import { SectionHeader } from "@/components/section-header";
 import { NoEntity } from "@/components/no-entity";
+import { EmptyState } from "@/components/empty-state";
 import { NarrativesList } from "@/components/narratives-list";
 
 export default async function NarrativesPage() {
@@ -30,9 +31,10 @@ export default async function NarrativesPage() {
         }
       />
       {narratives.length === 0 ? (
-        <div className="rounded-lg border border-border bg-white p-6 text-sm text-[color:var(--text-secondary)]">
-          No active narrative threads for {selected} yet.
-        </div>
+        <EmptyState
+          title={`No active narratives for ${selected}`}
+          message="Narrative threads appear here once BrandPulse clusters related posts into a story. Try again after the next ingestion."
+        />
       ) : (
         <NarrativesList narratives={narratives} />
       )}

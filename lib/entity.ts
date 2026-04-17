@@ -26,8 +26,11 @@ export async function getEntitySelection(): Promise<EntitySelection> {
   const cookieStore = await cookies();
   const fromCookie = cookieStore.get(COOKIE)?.value;
 
+  const cookieLower = fromCookie?.toLowerCase();
   const selected =
-    (fromCookie && entities.find((e) => e.entity_name === fromCookie)?.entity_name) ||
+    (cookieLower &&
+      entities.find((e) => e.entity_name.toLowerCase() === cookieLower)
+        ?.entity_name) ||
     entities.find((e) => e.is_primary)?.entity_name ||
     entities[0]?.entity_name ||
     null;

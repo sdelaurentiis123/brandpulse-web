@@ -43,7 +43,7 @@ export function EntitySelect({
       <SelectContent>
         {entities.map((e) => (
           <SelectItem key={e.id} value={e.entity_name}>
-            {e.entity_name}
+            {e.display_name ?? e.entity_name}
           </SelectItem>
         ))}
       </SelectContent>

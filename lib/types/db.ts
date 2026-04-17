@@ -12,6 +12,7 @@ export interface TrackedEntity {
   id: string;
   user_id: string;
   entity_name: string;
+  display_name: string | null;
   entity_type: string | null;
   is_primary: boolean;
   aliases: string[] | null;

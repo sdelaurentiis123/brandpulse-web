@@ -4,12 +4,14 @@ import {
   AreaChart,
   Area,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { ChartTooltip } from "./chart-tooltip";
+import { niceDomain } from "./domain";
 
 export interface BpxTrendPoint {
   date: string;
@@ -17,6 +19,9 @@ export interface BpxTrendPoint {
 }
 
 export function BpxTrendChart({ data }: { data: BpxTrendPoint[] }) {
+  const domain = niceDomain(data.map((d) => d.bpx));
+  const showZeroLine = domain[0] < 0 && domain[1] > 0;
+
   return (
     <div className="rounded-lg border border-border bg-white pl-0 pr-4 pt-5 pb-3">
       <ResponsiveContainer width="100%" height={220}>
@@ -40,8 +45,12 @@ export function BpxTrendChart({ data }: { data: BpxTrendPoint[] }) {
             axisLine={false}
             tickLine={false}
             width={36}
-            domain={[0, 100]}
+            domain={domain}
+            allowDataOverflow={false}
           />
+          {showZeroLine && (
+            <ReferenceLine y={0} stroke="var(--border-muted)" strokeDasharray="2 4" />
+          )}
           <Tooltip content={<ChartTooltip />} />
           <Area
             type="monotone"

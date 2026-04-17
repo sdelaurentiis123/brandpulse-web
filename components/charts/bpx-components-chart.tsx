@@ -4,18 +4,26 @@ import {
   AreaChart,
   Area,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { ChartTooltip } from "./chart-tooltip";
+import { niceDomain } from "./domain";
 
 export function BpxComponentsChart({
   data,
 }: {
   data: Array<{ date: string; sentiment: number; momentum: number }>;
 }) {
+  const domain = niceDomain([
+    ...data.map((d) => d.sentiment),
+    ...data.map((d) => d.momentum),
+  ]);
+  const showZeroLine = domain[0] < 0 && domain[1] > 0;
+
   return (
     <div className="rounded-lg border border-border bg-white pl-0 pr-4 pt-5 pb-3">
       <ResponsiveContainer width="100%" height={240}>
@@ -43,7 +51,11 @@ export function BpxComponentsChart({
             axisLine={false}
             tickLine={false}
             width={36}
+            domain={domain}
           />
+          {showZeroLine && (
+            <ReferenceLine y={0} stroke="var(--border-muted)" strokeDasharray="2 4" />
+          )}
           <Tooltip content={<ChartTooltip />} />
           <Area
             type="monotone"

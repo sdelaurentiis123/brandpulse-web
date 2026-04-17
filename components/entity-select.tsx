@@ -38,7 +38,12 @@ export function EntitySelect({
   return (
     <Select value={selected} onValueChange={handleChange} disabled={pending}>
       <SelectTrigger className="w-full bg-[color:var(--surface)]">
-        <SelectValue placeholder="Select entity" />
+        <SelectValue placeholder="Select entity">
+          {(value: string | null) => {
+            const match = entities.find((e) => e.entity_name === value);
+            return match?.display_name ?? match?.entity_name ?? "Select entity";
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {entities.map((e) => (

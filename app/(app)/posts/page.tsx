@@ -23,7 +23,7 @@ export default async function PostsPage({
 }: {
   searchParams: Promise<{ source?: string }>;
 }) {
-  const { selected } = await getEntitySelection();
+  const { selected, selectedDisplay } = await getEntitySelection();
   const { source = "All" } = await searchParams;
 
   if (!selected) {
@@ -43,7 +43,7 @@ export default async function PostsPage({
 
   return (
     <>
-      <PageHeader title={selected} subtitle="Posts" />
+      <PageHeader title={selectedDisplay ?? selected} subtitle="Posts" />
 
       {allPosts.length > 0 && <PostsInsights posts={allPosts} />}
 
@@ -73,7 +73,7 @@ export default async function PostsPage({
         {posts.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm text-[color:var(--text-secondary)]">
             {source === "All"
-              ? `No posts ingested for ${selected} yet.`
+              ? `No posts ingested for ${selectedDisplay ?? selected} yet.`
               : `No ${source} posts match this filter.`}
           </div>
         ) : (

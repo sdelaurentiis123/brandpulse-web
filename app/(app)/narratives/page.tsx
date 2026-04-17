@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/empty-state";
 import { NarrativesList } from "@/components/narratives-list";
 
 export default async function NarrativesPage() {
-  const { selected } = await getEntitySelection();
+  const { selected, selectedDisplay } = await getEntitySelection();
   if (!selected) {
     return (
       <>
@@ -21,7 +21,7 @@ export default async function NarrativesPage() {
 
   return (
     <>
-      <PageHeader title={selected} subtitle="Narratives" />
+      <PageHeader title={selectedDisplay ?? selected} subtitle="Narratives" />
       <SectionHeader
         title="Narrative Threads"
         right={
@@ -32,7 +32,7 @@ export default async function NarrativesPage() {
       />
       {narratives.length === 0 ? (
         <EmptyState
-          title={`No active narratives for ${selected}`}
+          title={`No active narratives for ${selectedDisplay ?? selected}`}
           message="Narrative threads appear here once BrandPulse clusters related posts into a story. Try again after the next ingestion."
         />
       ) : (

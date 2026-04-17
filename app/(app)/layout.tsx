@@ -13,7 +13,7 @@ export default async function AppLayout({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const { entities, selected } = await getEntitySelection();
+  const { entities, selected, selectedDisplay } = await getEntitySelection();
   const cookieStore = await cookies();
   const chatOpen = cookieStore.get("bp_chat_open")?.value !== "0";
 
@@ -31,7 +31,12 @@ export default async function AppLayout({
           </div>
         </main>
 
-        <ChatRail entity={selected} userId={user.id} initialOpen={chatOpen} />
+        <ChatRail
+          entity={selected}
+          entityDisplay={selectedDisplay}
+          userId={user.id}
+          initialOpen={chatOpen}
+        />
       </div>
     </EntityProvider>
   );

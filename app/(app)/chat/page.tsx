@@ -4,7 +4,7 @@ import { NoEntity } from "@/components/no-entity";
 import { ChatSurface } from "@/components/chat/chat-surface";
 
 export default async function ChatPage() {
-  const { selected } = await getEntitySelection();
+  const { selected, selectedDisplay } = await getEntitySelection();
 
   if (!selected) {
     return (
@@ -17,9 +17,13 @@ export default async function ChatPage() {
 
   return (
     <>
-      <PageHeader title={selected} subtitle="Chat" />
+      <PageHeader title={selectedDisplay ?? selected} subtitle="Chat" />
       <div className="h-[calc(100vh-10rem)] min-h-[520px]">
-        <ChatSurface entity={selected} variant="page" />
+        <ChatSurface
+          entity={selected}
+          entityDisplay={selectedDisplay}
+          variant="page"
+        />
       </div>
     </>
   );

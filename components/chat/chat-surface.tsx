@@ -34,6 +34,7 @@ export interface ChatSurfaceHandle {
 
 interface ChatSurfaceProps {
   entity: string | null;
+  entityDisplay?: string | null;
   variant?: "rail" | "page";
   onTitleChange?: (title: string) => void;
   className?: string;
@@ -60,9 +61,17 @@ function fmtRelative(iso: string): string {
 
 export const ChatSurface = forwardRef<ChatSurfaceHandle, ChatSurfaceProps>(
   function ChatSurface(
-    { entity, variant = "rail", onTitleChange, className, onCloseRail },
+    {
+      entity,
+      entityDisplay,
+      variant = "rail",
+      onTitleChange,
+      className,
+      onCloseRail,
+    },
     ref
   ) {
+    const entityLabel = entityDisplay ?? entity;
     const [sessions, setSessions] = useState<ChatSessionView[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [messages, setMessages] = useState<ChatMessageView[]>([]);
@@ -333,7 +342,7 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, ChatSurfaceProps>(
               </div>
               {!showHistory && entity && (
                 <div className="mt-0.5 text-[11px] text-[color:var(--text-tertiary)]">
-                  {entity} context
+                  {entityLabel} context
                 </div>
               )}
             </div>
@@ -437,7 +446,7 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, ChatSurfaceProps>(
               {messages.length === 0 && (
                 <div className="py-10 text-center">
                   <div className="text-sm leading-relaxed text-[color:var(--text-tertiary)]">
-                    Ask anything about {entity ?? "the selected entity"}&apos;s
+                    Ask anything about {entityLabel ?? "the selected entity"}&apos;s
                     reputation data, narrative threads, or sentiment trends.
                   </div>
                   <div className="mt-5 flex flex-col gap-1.5">

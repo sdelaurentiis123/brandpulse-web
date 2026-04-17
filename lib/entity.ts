@@ -16,26 +16,31 @@ export async function getCurrentUser() {
 export interface EntitySelection {
   entities: TrackedEntity[];
   selected: string | null;
+  selectedDisplay: string | null;
 }
 
 export async function getEntitySelection(): Promise<EntitySelection> {
   const user = await getCurrentUser();
-  if (!user) return { entities: [], selected: null };
+  if (!user) return { entities: [], selected: null, selectedDisplay: null };
 
   const entities = await getTrackedEntities(user.id);
   const cookieStore = await cookies();
   const fromCookie = cookieStore.get(COOKIE)?.value;
 
   const cookieLower = fromCookie?.toLowerCase();
-  const selected =
+  const selectedEntity =
     (cookieLower &&
-      entities.find((e) => e.entity_name.toLowerCase() === cookieLower)
-        ?.entity_name) ||
-    entities.find((e) => e.is_primary)?.entity_name ||
-    entities[0]?.entity_name ||
+      entities.find((e) => e.entity_name.toLowerCase() === cookieLower)) ||
+    entities.find((e) => e.is_primary) ||
+    entities[0] ||
     null;
 
-  return { entities, selected };
+  return {
+    entities,
+    selected: selectedEntity?.entity_name ?? null,
+    selectedDisplay:
+      selectedEntity?.display_name ?? selectedEntity?.entity_name ?? null,
+  };
 }
 
 export const ENTITY_COOKIE = COOKIE;

@@ -13,10 +13,12 @@ function setCookie(value: string) {
 
 export function ChatRail({
   entity,
+  entityDisplay,
   userId,
   initialOpen,
 }: {
   entity: string | null;
+  entityDisplay: string | null;
   userId: string;
   initialOpen: boolean;
 }) {
@@ -48,6 +50,7 @@ export function ChatRail({
     <aside className="flex h-screen w-[380px] shrink-0 flex-col border-l border-border bg-white">
       <ChatSurface
         entity={entity}
+        entityDisplay={entityDisplay}
         variant="rail"
         onCloseRail={() => setOpen(false)}
       />

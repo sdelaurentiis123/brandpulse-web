@@ -52,7 +52,7 @@ function dayRangeLabel(trend: ReputationSnapshot[]): string {
 }
 
 export default async function DashboardPage() {
-  const { selected } = await getEntitySelection();
+  const { selected, selectedDisplay } = await getEntitySelection();
   if (!selected) {
     return (
       <>
@@ -93,9 +93,9 @@ export default async function DashboardPage() {
   if (!hasAnyData) {
     return (
       <>
-        <PageHeader title={selected} subtitle="Overview" />
+        <PageHeader title={selectedDisplay ?? selected} subtitle="Overview" />
         <EmptyState
-          title={`No data yet for ${selected}`}
+          title={`No data yet for ${selectedDisplay ?? selected}`}
           message="BrandPulse hasn't ingested any posts, snapshots, or narratives for this entity. Data will appear here after the next ingestion run."
         />
       </>
@@ -104,7 +104,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader title={selected} subtitle="Overview" />
+      <PageHeader title={selectedDisplay ?? selected} subtitle="Overview" />
 
       {report?.briefing && (
         <CollapsibleBriefing text={report.briefing} dateLabel={briefingDate} />

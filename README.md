@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BrandPulse Web Companion
 
-## Getting Started
+Next.js companion site for the BrandPulse mobile app. Reads the same Supabase
+project (`cuxybfuptpgbfcnwkpqr`) and layers deeper analytics + a Claude-powered
+chat on top.
 
-First, run the development server:
+## Setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```sh
+cp .env.local.example .env.local
+# edit .env.local and fill in:
+#   NEXT_PUBLIC_SUPABASE_URL
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY
+#   ANTHROPIC_API_KEY
+
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### One-time: apply the chat migration
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Run `supabase/migrations/20260417_chat.sql` against the Supabase project (SQL
+editor or `supabase db push`). This creates two new tables (`chat_sessions`,
+`chat_messages`) with RLS policies — the only writes this app performs outside
+of auth.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Dev
 
-## Learn More
+```sh
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open <http://localhost:3000> → redirects to `/login`. Sign in with the same
+credentials as the mobile app. Your tracked entities populate the sidebar
+dropdown automatically.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Next.js 16 (App Router)** with RSC pages calling typed Supabase query
+  helpers in `lib/supabase/queries.ts`.
+- **Supabase SSR auth** via `@supabase/ssr`. Session refreshed in
+  `middleware.ts`; unauthenticated routes redirect to `/login`.
+- **Entity context** lives in a `bp_entity` cookie. The sidebar `EntitySelect`
+  posts to `/api/entity` and calls `router.refresh()` so every server component
+  re-reads with the new entity.
+- **Chat**: `/api/chat` is a Server-Sent-Events endpoint that persists each
+  user/assistant turn to Supabase and streams `claude-opus-4-7` replies with
+  the post corpus injected into the system prompt.
+- **Chat rail** (`components/chat/chat-rail.tsx`) — collapsible right panel
+  available on every page except `/chat` itself.
+- **Chat page** (`/chat`) — full-width version of the same `ChatSurface`
+  component.
 
-## Deploy on Vercel
+## Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Target is Vercel. Set the three env vars in project settings:
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`ANTHROPIC_API_KEY`. Apply the chat migration against production Supabase
+first.

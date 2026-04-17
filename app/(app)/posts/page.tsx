@@ -6,6 +6,7 @@ import { NoEntity } from "@/components/no-entity";
 import { EmptyState } from "@/components/empty-state";
 import { SentimentBadge } from "@/components/sentiment-badge";
 import { PostsFilters } from "@/components/posts-filters";
+import { PostsInsights } from "@/components/posts-insights";
 
 const SOURCES = ["All", "Twitter", "Reddit", "TikTok", "News"] as const;
 
@@ -34,19 +35,23 @@ export default async function PostsPage({
     );
   }
 
-  const posts = await getPosts(selected, {
-    source: source === "All" ? undefined : source,
-    limit: 100,
-  });
+  // Insights reflect the full post corpus; the filter only affects the table
+  // so users can always see the big picture even when drilling into one source.
+  const allPosts = await getPosts(selected, { limit: 200 });
+  const posts =
+    source === "All" ? allPosts : allPosts.filter((p) => p.source === source);
 
   return (
     <>
       <PageHeader title={selected} subtitle="Posts" />
+
+      {allPosts.length > 0 && <PostsInsights posts={allPosts} />}
+
       <SectionHeader
         title="Post Explorer"
         right={
           <span className="text-[13px] text-[color:var(--text-tertiary)]">
-            {posts.length} posts
+            {posts.length} of {allPosts.length} posts
           </span>
         }
       />

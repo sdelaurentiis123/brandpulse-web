@@ -74,6 +74,9 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, ChatSurfaceProps>(
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
     const abortRef = useRef<AbortController | null>(null);
+    // Set to true when sendMessage creates a new session so the activeId
+    // effect below doesn't race the stream and overwrite optimistic messages.
+    const skipNextFetchRef = useRef(false);
 
     const activeSession = useMemo(
       () => sessions.find((s) => s.id === activeId) ?? null,
@@ -138,6 +141,12 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, ChatSurfaceProps>(
         setMessages([]);
         return;
       }
+      // Skip a refetch immediately after we created a session during sendMessage —
+      // the optimistic state + stream are the source of truth in that turn.
+      if (skipNextFetchRef.current) {
+        skipNextFetchRef.current = false;
+        return;
+      }
       let cancelled = false;
       (async () => {
         const res = await fetch(
@@ -195,6 +204,10 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, ChatSurfaceProps>(
       };
       setMessages((prev) => [...prev, optimisticUser, assistantPlaceholder]);
       setIsStreaming(true);
+      // If this send is creating a brand-new session, the activeId effect
+      // would otherwise refetch (and wipe) our optimistic messages as soon
+      // as the server's "session" event lands. Tell it to skip once.
+      if (!activeId) skipNextFetchRef.current = true;
 
       const controller = new AbortController();
       abortRef.current = controller;

@@ -10,6 +10,10 @@ import { SectionHeader } from "@/components/section-header";
 import { PageHeader } from "@/components/page-header";
 import { SentimentBadge } from "@/components/sentiment-badge";
 import { BpxTrendChart } from "@/components/charts/bpx-trend-chart";
+import { VolumeBarChart } from "@/components/charts/volume-bar-chart";
+import { SentimentMomentumChart } from "@/components/charts/sentiment-momentum-chart";
+import { BpxComponentsChart } from "@/components/charts/bpx-components-chart";
+import { CollapsibleBriefing } from "@/components/collapsible-briefing";
 import { NoEntity } from "@/components/no-entity";
 import { EmptyState } from "@/components/empty-state";
 import type { ReputationSnapshot } from "@/lib/types/db";
@@ -18,6 +22,8 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -35,6 +41,14 @@ function sentimentLabel(score: number): string {
   if (score > 20) return "positive";
   if (score < -5) return "negative";
   return "mixed";
+}
+
+function dayRangeLabel(trend: ReputationSnapshot[]): string {
+  if (trend.length === 0) return "";
+  const days = new Set(trend.map((r) => r.fetched_at.slice(0, 10)));
+  const n = days.size;
+  if (n <= 1) return `${trend.length} snapshots, 1 day`;
+  return `${trend.length} snapshots over ${n} days`;
 }
 
 export default async function DashboardPage() {
@@ -55,9 +69,12 @@ export default async function DashboardPage() {
     getActiveNarratives(selected),
   ]);
 
-  const trendData = trend.map((r) => ({
+  const chartData = trend.map((r) => ({
     date: fmtDate(r.fetched_at),
     bpx: r.bpx ?? 0,
+    sentiment: r.sentiment_index ?? 0,
+    momentum: r.momentum ?? 0,
+    volume: r.volume_total ?? 0,
   }));
 
   const report = briefing?.report_data;
@@ -71,10 +88,7 @@ export default async function DashboardPage() {
     : "";
 
   const hasAnyData =
-    !!briefing ||
-    !!snapshot ||
-    trend.length > 0 ||
-    narratives.length > 0;
+    !!briefing || !!snapshot || trend.length > 0 || narratives.length > 0;
 
   if (!hasAnyData) {
     return (
@@ -93,17 +107,10 @@ export default async function DashboardPage() {
       <PageHeader title={selected} subtitle="Overview" />
 
       {report?.briefing && (
-        <div className="mb-8 rounded-lg border border-[color:var(--border-muted)] bg-[color:var(--surface)] p-6">
-          <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[color:var(--text-tertiary)]">
-            Daily Briefing{briefingDate ? ` — ${briefingDate}` : ""}
-          </div>
-          <p className="max-w-[680px] text-sm leading-relaxed text-foreground">
-            {report.briefing}
-          </p>
-        </div>
+        <CollapsibleBriefing text={report.briefing} dateLabel={briefingDate} />
       )}
 
-      <div className="mb-8 flex flex-wrap gap-3">
+      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <MetricCard
           label="BPX Score"
           value={report?.overall?.score ?? snapshot?.bpx ?? "—"}
@@ -115,11 +122,6 @@ export default async function DashboardPage() {
                 : "Latest snapshot"
           }
           accent="brand"
-        />
-        <MetricCard
-          label="Sentiment"
-          value={report?.overall?.sentiment ?? snapshot?.sentiment_index ?? "—"}
-          sub="Across all platforms"
         />
         <MetricCard
           label="Volume"
@@ -146,55 +148,77 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="mb-8">
-        <SectionHeader title="BPX Index — 30 Day" />
-        {trendData.length > 0 ? (
-          <BpxTrendChart data={trendData} />
-        ) : (
-          <div className="rounded-lg border border-border bg-white p-6 text-sm text-[color:var(--text-secondary)]">
-            No snapshot data yet.
-          </div>
-        )}
-      </div>
+      {chartData.length > 0 && (
+        <div className="mb-8">
+          <SectionHeader
+            title="BPX Trend"
+            right={
+              <span className="text-[13px] text-[color:var(--text-tertiary)]">
+                {dayRangeLabel(trend)}
+              </span>
+            }
+          />
+          <BpxTrendChart data={chartData} />
+        </div>
+      )}
 
-      <SectionHeader title="Platform Breakdown" />
-      <div className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-4">
-        {platformRows(snapshot).map((p) => (
-          <div
-            key={p.platform}
-            className="rounded-lg border border-border bg-white px-5 py-4"
-          >
-            <div className="mb-3 text-[13px] font-semibold">{p.platform}</div>
-            <div className="flex flex-col gap-2">
-              <div>
-                <div className="text-[11px] text-[color:var(--text-tertiary)]">
-                  Posts
-                </div>
-                <div className="text-lg font-semibold">
-                  {p.count.toLocaleString()}
+      {snapshot && (
+        <>
+          <SectionHeader title="Platform Breakdown" />
+          <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {platformRows(snapshot).map((p) => (
+              <div
+                key={p.platform}
+                className="rounded-lg border border-border bg-white px-5 py-4"
+              >
+                <div className="mb-3 text-[13px] font-semibold">{p.platform}</div>
+                <div className="flex flex-col gap-2">
+                  <div>
+                    <div className="text-[11px] text-[color:var(--text-tertiary)]">
+                      Posts
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {p.count.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-[color:var(--text-tertiary)]">
+                      Engagement
+                    </div>
+                    <div className="text-[13px] font-medium text-[color:var(--text-secondary)]">
+                      {p.engagement.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[11px] text-[color:var(--text-tertiary)]">
+                      Sentiment
+                    </div>
+                    <SentimentBadge
+                      sentiment={sentimentLabel(p.sentiment)}
+                      score={p.sentiment}
+                    />
+                  </div>
                 </div>
               </div>
-              <div>
-                <div className="text-[11px] text-[color:var(--text-tertiary)]">
-                  Engagement
-                </div>
-                <div className="text-[13px] font-medium text-[color:var(--text-secondary)]">
-                  {p.engagement.toLocaleString()}
-                </div>
-              </div>
-              <div>
-                <div className="text-[11px] text-[color:var(--text-tertiary)] mb-1">
-                  Sentiment
-                </div>
-                <SentimentBadge
-                  sentiment={sentimentLabel(p.sentiment)}
-                  score={p.sentiment}
-                />
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
+
+      {chartData.length > 1 && (
+        <>
+          <SectionHeader title="Volume and Engagement" />
+          <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <VolumeBarChart data={chartData} />
+            <SentimentMomentumChart data={chartData} />
+          </div>
+
+          <SectionHeader title="BPX Components" />
+          <div className="mb-8">
+            <BpxComponentsChart data={chartData} />
+          </div>
+        </>
+      )}
 
       {report?.actions && report.actions.length > 0 && (
         <>

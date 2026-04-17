@@ -1,0 +1,779 @@
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import {
+  LineChart, Line, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+} from "recharts";
+
+// ── Mock Data ──────────────────────────────────────────────
+const ENTITIES = ["Justin Baldoni", "Blake Lively"];
+
+const bpxTrend = Array.from({ length: 30 }, (_, i) => {
+  const d = new Date(2026, 2, 18 + i);
+  return {
+    date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    bpx: Math.round(42 + Math.sin(i / 4) * 12 + i * 0.6 + (Math.random() - 0.5) * 6),
+    sentiment: Math.round(35 + Math.cos(i / 3) * 15 + (Math.random() - 0.5) * 8),
+    momentum: Math.round(50 + Math.sin(i / 5) * 20 + (Math.random() - 0.5) * 10),
+    volume: Math.round(1200 + Math.sin(i / 2) * 400 + Math.random() * 300),
+  };
+});
+
+const platformData = [
+  { platform: "Twitter", count: 847, engagement: 12400, sentiment: 38 },
+  { platform: "Reddit", count: 234, engagement: 5600, sentiment: -12 },
+  { platform: "TikTok", count: 1203, engagement: 89000, sentiment: 22 },
+  { platform: "News", count: 67, engagement: 3200, sentiment: 45 },
+];
+
+const narratives = [
+  {
+    id: "legal-filing-march",
+    headline: "New Court Filing Reveals Internal Communications",
+    status: "active", firstSeen: "Mar 22", lastUpdated: "Apr 16", sentiment: "negative",
+    updates: [
+      { date: "Apr 16", summary: "Additional documents surface showing timeline discrepancies in original statements.", score: -34 },
+      { date: "Apr 14", summary: "Legal analysts weigh in on implications for ongoing proceedings.", score: -28 },
+      { date: "Apr 11", summary: "Court filing becomes top trending topic across Twitter and Reddit.", score: -41 },
+      { date: "Mar 22", summary: "Initial filing reported by three major outlets simultaneously.", score: -52 },
+    ],
+  },
+  {
+    id: "public-support-campaign",
+    headline: "Grassroots Support Movement Gains Traction",
+    status: "active", firstSeen: "Mar 28", lastUpdated: "Apr 15", sentiment: "positive",
+    updates: [
+      { date: "Apr 15", summary: "Support hashtag reaches 2M impressions with celebrity endorsements.", score: 61 },
+      { date: "Apr 10", summary: "Organized fan campaigns drive positive coverage across platforms.", score: 48 },
+      { date: "Mar 28", summary: "Organic support posts begin trending on TikTok and Twitter.", score: 35 },
+    ],
+  },
+  {
+    id: "brand-partnership-review",
+    headline: "Brand Partners Reassessing Endorsement Deals",
+    status: "active", firstSeen: "Apr 2", lastUpdated: "Apr 13", sentiment: "negative",
+    updates: [
+      { date: "Apr 13", summary: "Third brand confirms pause on planned campaign launch.", score: -22 },
+      { date: "Apr 7", summary: "Industry sources report internal reviews at two major sponsors.", score: -31 },
+      { date: "Apr 2", summary: "First reports emerge of partnership reassessments.", score: -18 },
+    ],
+  },
+];
+
+const posts = [
+  { id: 1, source: "Twitter", author: "@tmz", title: "Breaking: New documents filed in ongoing case", sentiment: "negative", score: -44, engagement: 8420, date: "Apr 16" },
+  { id: 2, source: "Reddit", author: "u/entertainment_news", title: "Megathread: Timeline of events and analysis", sentiment: "mixed", score: -8, engagement: 3210, date: "Apr 16" },
+  { id: 3, source: "Twitter", author: "@variety", title: "Industry response to latest developments", sentiment: "neutral", score: 2, engagement: 2100, date: "Apr 15" },
+  { id: 4, source: "TikTok", author: "@popculturetea", title: "Everything you need to know — explainer", sentiment: "negative", score: -31, engagement: 142000, date: "Apr 15" },
+  { id: 5, source: "News", author: "The Hollywood Reporter", title: "Legal experts weigh in on filing implications", sentiment: "neutral", score: 5, engagement: 1800, date: "Apr 14" },
+  { id: 6, source: "Twitter", author: "@supporter_acct", title: "The full story they aren't telling you", sentiment: "positive", score: 62, engagement: 44200, date: "Apr 14" },
+  { id: 7, source: "Reddit", author: "u/legal_takes", title: "Detailed breakdown of court documents", sentiment: "negative", score: -38, engagement: 5600, date: "Apr 13" },
+  { id: 8, source: "News", author: "AP News", title: "Brand partners issue statements amid controversy", sentiment: "negative", score: -19, engagement: 2400, date: "Apr 13" },
+  { id: 9, source: "TikTok", author: "@dramabreakdown", title: "Why this matters more than people think", sentiment: "negative", score: -27, engagement: 98000, date: "Apr 12" },
+  { id: 10, source: "Twitter", author: "@deadline", title: "Production company addresses ongoing situation", sentiment: "neutral", score: 8, engagement: 3100, date: "Apr 12" },
+];
+
+const briefing = {
+  overall: { score: 47, delta: -3, sentiment: "mixed", volume: "2,351" },
+  summary: "Reputation under moderate pressure. Negative court filing narrative dominates coverage, partially offset by organic grassroots support campaign. Brand partnership risk remains the key watch item. Volume elevated 40% above 30-day average, driven primarily by TikTok and Twitter.",
+  actions: [
+    "Monitor brand partner statements closely — third pause announced today",
+    "Grassroots support campaign is organic and growing; avoid interfering",
+    "Legal filing narrative likely to intensify as next court date approaches",
+    "Consider proactive media engagement to shape coverage framing",
+  ],
+};
+
+const SEED_CHATS = [
+  {
+    id: "c1",
+    title: "BPX score drop analysis",
+    created: "Apr 16",
+    messages: [
+      { role: "user", text: "Why did BPX drop 3 points yesterday?" },
+      { role: "assistant", text: "The 3-point BPX decline was driven by two converging factors. First, the court filing narrative accelerated with three new outlets picking up the story, pushing narrative sentiment to -41. Second, a third brand partner confirmed a campaign pause, which moved the authority_share metric down 0.8 points. Twitter volume spiked 60% above baseline, but the sentiment mix was heavily negative (-44 average across 847 posts). The grassroots support campaign partially offset this, but its positive signal was concentrated on TikTok, which is excluded from BPX calculation due to caption unreliability." },
+      { role: "user", text: "What would it take to recover those points?" },
+      { role: "assistant", text: "BPX uses exponential smoothing with alpha=0.7, so roughly 70% of each new score comes from the latest snapshot. To recover 3 points you'd need either: (1) a sentiment shift back above +20 across Twitter and News simultaneously, which typically requires a positive narrative event; or (2) a volume drop of ~40% that removes the negative-skewing posts from the calculation window. The most realistic path is a combination: the legal filing narrative entering a quiet period between court dates while the support campaign maintains momentum. Recovery from a narrative-driven dip of this magnitude typically takes 4-7 days assuming no new negative catalysts." },
+    ],
+  },
+  {
+    id: "c2",
+    title: "Platform sentiment comparison",
+    created: "Apr 14",
+    messages: [
+      { role: "user", text: "Compare Reddit vs Twitter sentiment for the past week." },
+      { role: "assistant", text: "The platform divergence is notable this week. Twitter sentiment sits at +38, driven largely by the organized support campaign and high-engagement positive posts from fan accounts. The top-performing positive tweet pulled 44,200 engagements. Reddit, conversely, is running at -12 — the legal analysis threads are dominating, and the megathread format encourages detailed scrutiny that tends to skew negative. Reddit engagement per post (avg 5,600) is lower than Twitter but the audience composition skews toward longer-form opinion formation, meaning Reddit sentiment is a stronger leading indicator for News coverage in the next 48-72 hours." },
+    ],
+  },
+];
+
+// ── Styles ─────────────────────────────────────────────────
+const colors = {
+  bg: "#FFFFFF",
+  surface: "#F8F9FA",
+  surfaceHover: "#F1F3F5",
+  border: "#E8EAED",
+  borderLight: "#F1F3F5",
+  text: "#1A1A1A",
+  textSecondary: "#6B7280",
+  textTertiary: "#9CA3AF",
+  blue: "#0066FF",
+  blueLight: "#E8F0FE",
+  blueMuted: "#4D94FF",
+  positive: "#00875A",
+  positiveBg: "#E3FCEF",
+  negative: "#DE350B",
+  negativeBg: "#FFEBE6",
+  mixed: "#FF8B00",
+  mixedBg: "#FFF7E6",
+  neutral: "#6B7280",
+  neutralBg: "#F3F4F6",
+};
+
+const font = "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
+// ── Shared Components ──────────────────────────────────────
+
+function SentimentBadge({ sentiment, score }) {
+  const map = {
+    positive: { bg: colors.positiveBg, color: colors.positive },
+    negative: { bg: colors.negativeBg, color: colors.negative },
+    mixed: { bg: colors.mixedBg, color: colors.mixed },
+    neutral: { bg: colors.neutralBg, color: colors.neutral },
+  };
+  const s = map[sentiment] || map.neutral;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 500,
+      background: s.bg, color: s.color, fontFamily: font, letterSpacing: "-0.01em",
+    }}>
+      {sentiment}{score !== undefined && ` ${score > 0 ? "+" : ""}${score}`}
+    </span>
+  );
+}
+
+function MetricCard({ label, value, sub, accent }) {
+  return (
+    <div style={{
+      padding: "20px 24px", background: colors.bg, border: `1px solid ${colors.border}`,
+      borderRadius: 8, flex: 1, minWidth: 140,
+    }}>
+      <div style={{ fontSize: 11, color: colors.textTertiary, fontWeight: 500, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8, fontFamily: font }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 600, color: accent || colors.text, fontFamily: font, letterSpacing: "-0.02em", lineHeight: 1 }}>
+        {value}
+      </div>
+      {sub && <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 6, fontFamily: font }}>{sub}</div>}
+    </div>
+  );
+}
+
+function SectionHeader({ title, right }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+      <h2 style={{ fontSize: 17, fontWeight: 600, color: colors.text, fontFamily: font, letterSpacing: "-0.02em", margin: 0 }}>{title}</h2>
+      {right}
+    </div>
+  );
+}
+
+function FilterPill({ label, active, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "5px 14px", borderRadius: 100, fontSize: 13, fontWeight: 500, fontFamily: font,
+      border: active ? `1.5px solid ${colors.blue}` : `1px solid ${colors.border}`,
+      background: active ? colors.blueLight : colors.bg,
+      color: active ? colors.blue : colors.textSecondary,
+      cursor: "pointer", transition: "all 0.15s ease", letterSpacing: "-0.01em",
+    }}>
+      {label}
+    </button>
+  );
+}
+
+function CustomTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: "#1A1A1A", borderRadius: 8, padding: "10px 14px",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)", border: "none",
+    }}>
+      <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: font, marginBottom: 4 }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ fontSize: 13, color: "#fff", fontFamily: font, fontWeight: 500 }}>
+          {p.name}: {typeof p.value === "number" ? p.value.toLocaleString() : p.value}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Icons (inline SVG) ─────────────────────────────────────
+
+function IconPlus({ size = 16, color = "currentColor" }) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round"><line x1="8" y1="3" x2="8" y2="13" /><line x1="3" y1="8" x2="13" y2="8" /></svg>;
+}
+function IconChat({ size = 16, color = "currentColor" }) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h12v8H5l-3 3V3z" /></svg>;
+}
+function IconSend({ size = 16, color = "currentColor" }) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2L7 9" /><path d="M14 2L9.5 14L7 9L2 6.5L14 2Z" /></svg>;
+}
+function IconChevron({ size = 14, color = "currentColor", direction = "left" }) {
+  const rot = { left: 0, right: 180, down: 90, up: 270 };
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: `rotate(${rot[direction]}deg)`, transition: "transform 0.15s ease" }}><path d="M10 4L6 8L10 12" /></svg>;
+}
+function IconTrash({ size = 14, color = "currentColor" }) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4h10M5.5 4V3a1 1 0 011-1h3a1 1 0 011 1v1M6 7v4M10 7v4M4.5 4l.5 9a1 1 0 001 1h4a1 1 0 001-1l.5-9" /></svg>;
+}
+function IconHistory({ size = 16, color = "currentColor" }) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="5.5" /><path d="M8 5v3.5l2 1.5" /></svg>;
+}
+
+// ── Chat Panel ─────────────────────────────────────────────
+
+function ChatPanel({ entity, isOpen, onToggle }) {
+  const [chats, setChats] = useState(SEED_CHATS);
+  const [activeChatId, setActiveChatId] = useState("c1");
+  const [showHistory, setShowHistory] = useState(false);
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const activeChat = chats.find(c => c.id === activeChatId);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  useEffect(() => { scrollToBottom(); }, [activeChat?.messages?.length, scrollToBottom]);
+  useEffect(() => { if (isOpen && !showHistory) inputRef.current?.focus(); }, [isOpen, showHistory, activeChatId]);
+
+  const createNewChat = () => {
+    const id = "c" + Date.now();
+    setChats(prev => [{ id, title: "New conversation", created: "Just now", messages: [] }, ...prev]);
+    setActiveChatId(id);
+    setShowHistory(false);
+    setInput("");
+  };
+
+  const deleteChat = (id) => {
+    setChats(prev => {
+      const next = prev.filter(c => c.id !== id);
+      if (activeChatId === id && next.length > 0) setActiveChatId(next[0].id);
+      if (next.length === 0) {
+        const fresh = { id: "c" + Date.now(), title: "New conversation", created: "Just now", messages: [] };
+        setActiveChatId(fresh.id);
+        return [fresh];
+      }
+      return next;
+    });
+  };
+
+  const sendMessage = () => {
+    const text = input.trim();
+    if (!text || isTyping) return;
+    setInput("");
+
+    setChats(prev => prev.map(c => {
+      if (c.id !== activeChatId) return c;
+      const isFirst = c.messages.length === 0;
+      return {
+        ...c,
+        title: isFirst ? text.slice(0, 40) + (text.length > 40 ? "..." : "") : c.title,
+        created: isFirst ? "Just now" : c.created,
+        messages: [...c.messages, { role: "user", text }],
+      };
+    }));
+
+    setIsTyping(true);
+    setTimeout(() => {
+      const responses = [
+        `Based on the current data for ${entity}, the sentiment distribution shows a notable divergence across platforms. Twitter is running net positive at +38, largely due to organized support campaigns, while Reddit skews negative at -12 driven by detailed analysis threads. The key variable to watch is whether the News platform sentiment (currently +45) holds — it tends to be a lagging indicator that follows Reddit's analytical framing by 48-72 hours.`,
+        `Looking at the BPX components: sentiment_index accounts for roughly 40% of the composite score, momentum contributes 25%, authority_share 20%, and volatility acts as a dampener at 15%. The current 3-point decline is primarily sentiment-driven, but the momentum component is also weakening as the 7-day moving average of positive coverage thins out. Focus on narrative_updates — new entries there precede BPX moves by about a day.`,
+        `The volume pattern is worth noting. Total post volume is 2,351 over the past 24 hours, which is 40% above the 30-day baseline. Historically, volume spikes of this magnitude that are sentiment-negative tend to decay over 3-5 days unless a new catalyst emerges. The court filing narrative is the primary driver — 67% of negative posts reference it directly.`,
+      ];
+      setChats(prev => prev.map(c => {
+        if (c.id !== activeChatId) return c;
+        return { ...c, messages: [...c.messages, { role: "assistant", text: responses[Math.floor(Math.random() * responses.length)] }] };
+      }));
+      setIsTyping(false);
+    }, 1200 + Math.random() * 800);
+  };
+
+  const handleKeyDown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+
+  // Collapsed state — floating button
+  if (!isOpen) {
+    return (
+      <button onClick={onToggle} style={{
+        position: "fixed", right: 20, bottom: 20, width: 48, height: 48,
+        borderRadius: 12, background: colors.text, border: "none", cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.15)", zIndex: 100,
+      }}>
+        <IconChat size={20} color="#fff" />
+      </button>
+    );
+  }
+
+  return (
+    <aside style={{
+      width: 380, background: colors.bg, borderLeft: `1px solid ${colors.border}`,
+      display: "flex", flexDirection: "column", flexShrink: 0, height: "100vh",
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: "14px 16px", borderBottom: `1px solid ${colors.border}`,
+        display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {showHistory && (
+            <button onClick={() => setShowHistory(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: colors.textSecondary }}>
+              <IconChevron size={16} color={colors.textSecondary} direction="left" />
+            </button>
+          )}
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, fontFamily: font, letterSpacing: "-0.01em" }}>
+              {showHistory ? "Chat History" : (activeChat?.title || "New conversation")}
+            </div>
+            {!showHistory && <div style={{ fontSize: 11, color: colors.textTertiary, fontFamily: font, marginTop: 1 }}>{entity} context</div>}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 2 }}>
+          {!showHistory && (
+            <>
+              <HeaderBtn onClick={createNewChat} title="New chat"><IconPlus size={15} color={colors.textSecondary} /></HeaderBtn>
+              <HeaderBtn onClick={() => setShowHistory(true)} title="History"><IconHistory size={15} color={colors.textSecondary} /></HeaderBtn>
+            </>
+          )}
+          <HeaderBtn onClick={onToggle} title="Close"><IconChevron size={15} color={colors.textSecondary} direction="right" /></HeaderBtn>
+        </div>
+      </div>
+
+      {showHistory ? (
+        /* ── History View ──────────────────────────────── */
+        <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
+          <button onClick={createNewChat} style={{
+            width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px dashed ${colors.border}`,
+            background: "transparent", cursor: "pointer", fontFamily: font, fontSize: 13,
+            color: colors.blue, fontWeight: 500, marginBottom: 4, display: "flex", alignItems: "center", gap: 8, justifyContent: "center",
+            transition: "background 0.1s",
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = colors.blueLight}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+          >
+            <IconPlus size={14} color={colors.blue} /> New conversation
+          </button>
+
+          {chats.map(c => (
+            <div key={c.id} onClick={() => { setActiveChatId(c.id); setShowHistory(false); }}
+              style={{
+                padding: "10px 12px", borderRadius: 8, cursor: "pointer",
+                background: c.id === activeChatId ? colors.blueLight : "transparent",
+                transition: "background 0.1s", marginBottom: 2,
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}
+              onMouseEnter={e => { if (c.id !== activeChatId) e.currentTarget.style.background = colors.surfaceHover; }}
+              onMouseLeave={e => { if (c.id !== activeChatId) e.currentTarget.style.background = "transparent"; }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 500, fontFamily: font, letterSpacing: "-0.01em",
+                  color: c.id === activeChatId ? colors.blue : colors.text,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>{c.title}</div>
+                <div style={{ fontSize: 11, color: colors.textTertiary, fontFamily: font, marginTop: 2 }}>
+                  {c.created} · {c.messages.length} messages
+                </div>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); deleteChat(c.id); }} style={{
+                background: "none", border: "none", cursor: "pointer", padding: 4, borderRadius: 4,
+                display: "flex", alignItems: "center", opacity: 0.3, transition: "opacity 0.15s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                onMouseLeave={e => e.currentTarget.style.opacity = 0.3}
+              >
+                <IconTrash size={13} color={colors.negative} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* ── Chat View ─────────────────────────────────── */
+        <>
+          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+            {activeChat?.messages.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 16px" }}>
+                <div style={{ fontSize: 14, color: colors.textTertiary, fontFamily: font, lineHeight: 1.6 }}>
+                  Ask anything about {entity}'s reputation data, narrative threads, or sentiment trends.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 20 }}>
+                  {["Why did BPX drop this week?", "Summarize the active narratives", "Which platform is most negative?"].map((q, i) => (
+                    <button key={i} onClick={() => setInput(q)} style={{
+                      padding: "8px 14px", borderRadius: 8, border: `1px solid ${colors.border}`,
+                      background: colors.bg, cursor: "pointer", fontFamily: font, fontSize: 13,
+                      color: colors.textSecondary, textAlign: "left", transition: "all 0.1s",
+                    }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = colors.blue; e.currentTarget.style.color = colors.blue; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = colors.border; e.currentTarget.style.color = colors.textSecondary; }}
+                    >{q}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeChat?.messages.map((m, i) => (
+              <div key={i} style={{ marginBottom: 16, display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
+                {m.role === "assistant" && (
+                  <div style={{ fontSize: 11, fontWeight: 500, color: colors.textTertiary, fontFamily: font, marginBottom: 4, marginLeft: 2 }}>BrandPulse</div>
+                )}
+                <div style={{
+                  maxWidth: "90%", padding: "10px 14px",
+                  borderRadius: m.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                  background: m.role === "user" ? colors.text : colors.surface,
+                  color: m.role === "user" ? "#fff" : colors.text,
+                  fontSize: 13, fontFamily: font, lineHeight: 1.55, letterSpacing: "-0.01em",
+                }}>{m.text}</div>
+              </div>
+            ))}
+
+            {isTyping && (
+              <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                <div style={{ fontSize: 11, fontWeight: 500, color: colors.textTertiary, fontFamily: font, marginBottom: 4, marginLeft: 2 }}>BrandPulse</div>
+                <div style={{ padding: "12px 16px", borderRadius: "14px 14px 14px 4px", background: colors.surface, display: "flex", gap: 5 }}>
+                  {[0, 1, 2].map(d => (
+                    <div key={d} style={{
+                      width: 6, height: 6, borderRadius: "50%", background: colors.textTertiary,
+                      animation: `bpPulse 1.2s ease-in-out ${d * 0.2}s infinite`,
+                    }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input bar */}
+          <div style={{ padding: "12px 16px 16px", borderTop: `1px solid ${colors.borderLight}`, flexShrink: 0 }}>
+            <div style={{
+              display: "flex", alignItems: "flex-end", gap: 8,
+              background: colors.surface, borderRadius: 12, padding: "8px 8px 8px 14px",
+              border: `1px solid ${colors.border}`,
+            }}>
+              <textarea
+                ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                placeholder="Ask about reputation data..."
+                rows={1}
+                style={{
+                  flex: 1, border: "none", background: "transparent", resize: "none",
+                  fontSize: 13, fontFamily: font, color: colors.text, padding: "4px 0",
+                  lineHeight: 1.4, outline: "none", letterSpacing: "-0.01em", minHeight: 20, maxHeight: 80,
+                }}
+                onInput={e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 80) + "px"; }}
+              />
+              <button onClick={sendMessage} disabled={!input.trim() || isTyping} style={{
+                width: 30, height: 30, borderRadius: 8, border: "none",
+                cursor: input.trim() && !isTyping ? "pointer" : "default",
+                background: input.trim() && !isTyping ? colors.text : colors.border,
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                transition: "background 0.15s",
+              }}>
+                <IconSend size={13} color="#fff" />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      <style>{`@keyframes bpPulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }`}</style>
+    </aside>
+  );
+}
+
+function HeaderBtn({ onClick, title, children }) {
+  return (
+    <button onClick={onClick} title={title} style={{
+      background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6,
+      display: "flex", alignItems: "center", color: colors.textSecondary, transition: "background 0.1s",
+    }}
+      onMouseEnter={e => e.currentTarget.style.background = colors.surfaceHover}
+      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+    >{children}</button>
+  );
+}
+
+// ── Views ──────────────────────────────────────────────────
+
+function DashboardView() {
+  return (
+    <div>
+      <div style={{
+        padding: 24, background: colors.surface, borderRadius: 8,
+        border: `1px solid ${colors.borderLight}`, marginBottom: 32,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 500, color: colors.textTertiary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: font }}>
+          Daily Briefing — Apr 17, 2026
+        </div>
+        <p style={{ fontSize: 14, color: colors.text, lineHeight: 1.6, fontFamily: font, margin: 0, maxWidth: 680 }}>{briefing.summary}</p>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 32, flexWrap: "wrap" }}>
+        <MetricCard label="BPX Score" value={briefing.overall.score} sub={`${briefing.overall.delta} from yesterday`} accent={colors.blue} />
+        <MetricCard label="Sentiment" value={briefing.overall.sentiment} sub="Across all platforms" />
+        <MetricCard label="Volume" value={briefing.overall.volume} sub="Posts tracked (24h)" />
+        <MetricCard label="Narratives" value={narratives.filter(n => n.status === "active").length} sub={`${narratives[0].headline.substring(0, 28)}...`} />
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <SectionHeader title="BPX Index — 30 Day" />
+        <div style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: "20px 16px 12px 0" }}>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={bpxTrend}>
+              <defs><linearGradient id="bpxGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={colors.blue} stopOpacity={0.12} /><stop offset="100%" stopColor={colors.blue} stopOpacity={0} /></linearGradient></defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.borderLight} vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: colors.textTertiary, fontFamily: font }} axisLine={false} tickLine={false} interval={4} />
+              <YAxis tick={{ fontSize: 11, fill: colors.textTertiary, fontFamily: font }} axisLine={false} tickLine={false} domain={[20, 80]} width={36} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="bpx" stroke={colors.blue} strokeWidth={2} fill="url(#bpxGrad)" name="BPX" dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <SectionHeader title="Platform Breakdown" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 32 }}>
+        {platformData.map(p => (
+          <div key={p.platform} style={{ padding: "16px 20px", background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, fontFamily: font, marginBottom: 12 }}>{p.platform}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div><div style={{ fontSize: 11, color: colors.textTertiary, fontFamily: font }}>Posts</div><div style={{ fontSize: 18, fontWeight: 600, color: colors.text, fontFamily: font }}>{p.count.toLocaleString()}</div></div>
+              <div><div style={{ fontSize: 11, color: colors.textTertiary, fontFamily: font }}>Engagement</div><div style={{ fontSize: 13, fontWeight: 500, color: colors.textSecondary, fontFamily: font }}>{p.engagement.toLocaleString()}</div></div>
+              <div><div style={{ fontSize: 11, color: colors.textTertiary, fontFamily: font }}>Sentiment</div><SentimentBadge sentiment={p.sentiment > 20 ? "positive" : p.sentiment < -5 ? "negative" : "mixed"} score={p.sentiment} /></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <SectionHeader title="Recommended Actions" />
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {briefing.actions.map((a, i) => (
+          <div key={i} style={{ padding: "12px 16px", background: colors.surface, borderRadius: 6, fontSize: 13, color: colors.text, fontFamily: font, lineHeight: 1.5, borderLeft: `3px solid ${colors.blue}` }}>{a}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NarrativesView() {
+  const [expanded, setExpanded] = useState(null);
+  return (
+    <div>
+      <SectionHeader title="Narrative Threads" right={<span style={{ fontSize: 13, color: colors.textTertiary, fontFamily: font }}>{narratives.length} active</span>} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {narratives.map(n => (
+          <div key={n.id} style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, overflow: "hidden" }}>
+            <div onClick={() => setExpanded(expanded === n.id ? null : n.id)} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, fontFamily: font, marginBottom: 4, letterSpacing: "-0.01em" }}>{n.headline}</div>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: colors.textTertiary, fontFamily: font }}>First seen {n.firstSeen}</span>
+                  <span style={{ fontSize: 12, color: colors.textTertiary, fontFamily: font }}>Updated {n.lastUpdated}</span>
+                  <SentimentBadge sentiment={n.sentiment} />
+                </div>
+              </div>
+              <IconChevron size={14} color={colors.textTertiary} direction={expanded === n.id ? "up" : "down"} />
+            </div>
+            {expanded === n.id && (
+              <div style={{ borderTop: `1px solid ${colors.borderLight}`, padding: "0 20px 16px" }}>
+                {n.updates.map((u, i) => (
+                  <div key={i} style={{ display: "flex", gap: 16, padding: "14px 0", borderBottom: i < n.updates.length - 1 ? `1px solid ${colors.borderLight}` : "none" }}>
+                    <div style={{ minWidth: 56, fontSize: 13, fontWeight: 500, color: colors.textSecondary, fontFamily: font }}>{u.date}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, color: colors.text, fontFamily: font, lineHeight: 1.5, marginBottom: 4 }}>{u.summary}</div>
+                      <SentimentBadge sentiment={u.score > 10 ? "positive" : u.score < -10 ? "negative" : "mixed"} score={u.score} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PostsView() {
+  const [sourceFilter, setSourceFilter] = useState("All");
+  const sources = ["All", "Twitter", "Reddit", "TikTok", "News"];
+  const filtered = useMemo(() => sourceFilter === "All" ? posts : posts.filter(p => p.source === sourceFilter), [sourceFilter]);
+  return (
+    <div>
+      <SectionHeader title="Post Explorer" right={<span style={{ fontSize: 13, color: colors.textTertiary, fontFamily: font }}>{filtered.length} posts</span>} />
+      <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+        {sources.map(s => <FilterPill key={s} label={s} active={sourceFilter === s} onClick={() => setSourceFilter(s)} />)}
+      </div>
+      <div style={{ border: `1px solid ${colors.border}`, borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "72px 1fr 90px 56px 80px 52px", padding: "10px 16px", background: colors.surface, borderBottom: `1px solid ${colors.border}`, gap: 12 }}>
+          {["Source", "Title", "Sentiment", "Score", "Engage.", "Date"].map(h => (
+            <div key={h} style={{ fontSize: 11, fontWeight: 600, color: colors.textTertiary, fontFamily: font, textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</div>
+          ))}
+        </div>
+        {filtered.map((p, i) => (
+          <div key={p.id} style={{
+            display: "grid", gridTemplateColumns: "72px 1fr 90px 56px 80px 52px",
+            padding: "12px 16px", borderBottom: i < filtered.length - 1 ? `1px solid ${colors.borderLight}` : "none",
+            gap: 12, alignItems: "center", cursor: "pointer", transition: "background 0.1s",
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = colors.surfaceHover}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+          >
+            <div style={{ fontSize: 12, color: colors.textSecondary, fontFamily: font, fontWeight: 500 }}>{p.source}</div>
+            <div>
+              <div style={{ fontSize: 13, color: colors.text, fontFamily: font, fontWeight: 500, letterSpacing: "-0.01em" }}>{p.title}</div>
+              <div style={{ fontSize: 11, color: colors.textTertiary, fontFamily: font, marginTop: 2 }}>{p.author}</div>
+            </div>
+            <SentimentBadge sentiment={p.sentiment} />
+            <div style={{ fontSize: 13, fontWeight: 600, fontFamily: font, color: p.score > 0 ? colors.positive : p.score < 0 ? colors.negative : colors.neutral }}>{p.score > 0 ? "+" : ""}{p.score}</div>
+            <div style={{ fontSize: 12, color: colors.textSecondary, fontFamily: font }}>{p.engagement.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: colors.textTertiary, fontFamily: font }}>{p.date}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChartsView() {
+  return (
+    <div>
+      <SectionHeader title="Volume and Engagement" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
+        <div style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: "20px 16px 12px 0" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, fontFamily: font, marginBottom: 12, paddingLeft: 16 }}>Post Volume</div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={bpxTrend}>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.borderLight} vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: colors.textTertiary, fontFamily: font }} axisLine={false} tickLine={false} interval={5} />
+              <YAxis tick={{ fontSize: 10, fill: colors.textTertiary, fontFamily: font }} axisLine={false} tickLine={false} width={36} />
+              <Tooltip content={<CustomTooltip />} /><Bar dataKey="volume" fill={colors.blue} radius={[3, 3, 0, 0]} name="Volume" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: "20px 16px 12px 0" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, fontFamily: font, marginBottom: 12, paddingLeft: 16 }}>Sentiment vs Momentum</div>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={bpxTrend}>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.borderLight} vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: colors.textTertiary, fontFamily: font }} axisLine={false} tickLine={false} interval={5} />
+              <YAxis tick={{ fontSize: 10, fill: colors.textTertiary, fontFamily: font }} axisLine={false} tickLine={false} width={36} />
+              <Tooltip content={<CustomTooltip />} />
+              <Line type="monotone" dataKey="sentiment" stroke={colors.blue} strokeWidth={2} dot={false} name="Sentiment" />
+              <Line type="monotone" dataKey="momentum" stroke={colors.textTertiary} strokeWidth={1.5} dot={false} strokeDasharray="4 4" name="Momentum" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <SectionHeader title="BPX Components" />
+      <div style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: "20px 16px 12px 0" }}>
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={bpxTrend}>
+            <defs>
+              <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={colors.positive} stopOpacity={0.08} /><stop offset="100%" stopColor={colors.positive} stopOpacity={0} /></linearGradient>
+              <linearGradient id="momGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={colors.blue} stopOpacity={0.08} /><stop offset="100%" stopColor={colors.blue} stopOpacity={0} /></linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.borderLight} vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 11, fill: colors.textTertiary, fontFamily: font }} axisLine={false} tickLine={false} interval={4} />
+            <YAxis tick={{ fontSize: 11, fill: colors.textTertiary, fontFamily: font }} axisLine={false} tickLine={false} width={36} />
+            <Tooltip content={<CustomTooltip />} />
+            <Area type="monotone" dataKey="sentiment" stroke={colors.positive} strokeWidth={1.5} fill="url(#sentGrad)" name="Sentiment Index" dot={false} />
+            <Area type="monotone" dataKey="momentum" stroke={colors.blue} strokeWidth={1.5} fill="url(#momGrad)" name="Momentum" dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ───────────────────────────────────────────────
+
+const NAV = [
+  { key: "dashboard", label: "Overview" },
+  { key: "narratives", label: "Narratives" },
+  { key: "posts", label: "Posts" },
+  { key: "charts", label: "Analytics" },
+];
+
+export default function BrandPulseCompanion() {
+  const [view, setView] = useState("dashboard");
+  const [entity, setEntity] = useState(ENTITIES[0]);
+  const [chatOpen, setChatOpen] = useState(true);
+
+  const viewMap = {
+    dashboard: <DashboardView />,
+    narratives: <NarrativesView />,
+    posts: <PostsView />,
+    charts: <ChartsView />,
+  };
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: font, background: colors.surface }}>
+      {/* West Rail */}
+      <nav style={{
+        width: 200, background: colors.bg, borderRight: `1px solid ${colors.border}`,
+        padding: "24px 0", display: "flex", flexDirection: "column", flexShrink: 0,
+      }}>
+        <div style={{ padding: "0 20px", marginBottom: 32 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: colors.text, letterSpacing: "-0.03em" }}>BrandPulse</div>
+          <div style={{ fontSize: 11, color: colors.textTertiary, letterSpacing: "0.02em", marginTop: 2 }}>Reputation Intelligence</div>
+        </div>
+        <div style={{ padding: "0 12px", marginBottom: 24 }}>
+          <select value={entity} onChange={e => setEntity(e.target.value)} style={{
+            width: "100%", padding: "8px 12px", borderRadius: 6, fontSize: 13, fontFamily: font,
+            border: `1px solid ${colors.border}`, background: colors.surface, color: colors.text,
+            fontWeight: 500, cursor: "pointer", appearance: "none",
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236B7280' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E")`,
+            backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center",
+          }}>
+            {ENTITIES.map(e => <option key={e} value={e}>{e}</option>)}
+          </select>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "0 8px" }}>
+          {NAV.map(n => (
+            <button key={n.key} onClick={() => setView(n.key)} style={{
+              display: "block", width: "100%", textAlign: "left",
+              padding: "8px 12px", borderRadius: 6, fontSize: 14, fontWeight: 500, fontFamily: font,
+              border: "none", cursor: "pointer", transition: "all 0.1s ease",
+              background: view === n.key ? colors.blueLight : "transparent",
+              color: view === n.key ? colors.blue : colors.textSecondary, letterSpacing: "-0.01em",
+            }}>{n.label}</button>
+          ))}
+        </div>
+        <div style={{ marginTop: "auto", padding: "0 20px" }}>
+          <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 16 }}>
+            <div style={{ fontSize: 11, color: colors.textTertiary, fontFamily: font }}>Last sync</div>
+            <div style={{ fontSize: 12, color: colors.textSecondary, fontFamily: font, fontWeight: 500, marginTop: 2 }}>Today, 8:42 AM</div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Center */}
+      <main style={{ flex: 1, padding: "32px 36px", overflow: "auto", minWidth: 0 }}>
+        <div style={{ maxWidth: chatOpen ? 780 : 960 }}>
+          <div style={{ marginBottom: 32 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 600, color: colors.text, fontFamily: font, letterSpacing: "-0.03em", margin: 0 }}>{entity}</h1>
+            <div style={{ fontSize: 13, color: colors.textTertiary, fontFamily: font, marginTop: 4 }}>{NAV.find(n => n.key === view)?.label}</div>
+          </div>
+          {viewMap[view]}
+        </div>
+      </main>
+
+      {/* East Rail */}
+      <ChatPanel entity={entity} isOpen={chatOpen} onToggle={() => setChatOpen(!chatOpen)} />
+    </div>
+  );
+}
